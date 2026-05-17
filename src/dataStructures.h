@@ -1,38 +1,39 @@
-#ifndef DATASTRUCTURES_H_
-#define DATASTRUCTURES_H_
+#ifndef dataStructures_h
+#define dataStructures_h
 
 #include <vector>
+#include <map>
 #include <opencv2/core.hpp>
 
-struct LidarPoint { 
-    double x,y,z;   // x,y,z in [m]
-    double intensity; // reflected intensity
+struct LidarPoint { // single lidar point in space
+    double x,y,z,r; // x,y,z in [m], r is point reflectivity
 };
 
-struct BoundingBox { 
-    int boxID;         // unique bounding box ID
-    int trackID;       // unique track ID
-    float confidence;  // classification confidence
-    float lidarConfidence; // LiDAR-based confidence
-    cv::Rect roi;      // 2D region-of-interest in image coordinates
-    int classID;       // classification ID (0: car, 1: truck, etc.)
-    bool isVisible;    // visibility flag
-    std::vector<LidarPoint> lidarPoints;  // LiDAR points in 3D space
-    std::vector<cv::KeyPoint> keypoints;  // keypoints enclosed by 2D roi
-    std::vector<cv::DMatch> kptMatches;   // keypoint matches to previous frame
-    double TTC;        // time to collision
+struct BoundingBox { // bounding box around a classified object (contains both 2D and 3D data)
+    
+    int boxID; // unique identifier for this bounding box
+    int trackID; // unique identifier for the track to which this bounding box belongs
+    
+    cv::Rect roi; // 2D region-of-interest in image coordinates
+    int classID; // ID based on class file provided to YOLO framework
+    double confidence; // classification trust
+    
+    std::vector<LidarPoint> lidarPoints; // Lidar 3D points which project into 2D image roi
+    std::vector<cv::KeyPoint> keypoints; // keypoints enclosed by 2D roi
+    std::vector<cv::DMatch> kptMatches; // keypoint matches enclosed by 2D roi
 };
 
-struct DataFrame { 
-    cv::Mat cameraImg;           // camera image
-    std::vector<cv::KeyPoint> keypoints;     // 2D keypoints within camera image
-    std::vector<cv::DMatch> kptMatches;      // keypoint matches to previous frame
-    std::vector<cv::KeyPoint> keypointsPrev; // 2D keypoints from previous frame
-    std::vector<cv::DMatch> kptMatchesPrev;  // keypoint matches from previous frame
-    std::vector<BoundingBox> boundingBoxes;  // bounding boxes around objects
-    std::vector<LidarPoint> lidarPoints;     // LiDAR points in vehicle coordinates
-    std::vector<BoundingBox> boundingBoxesPrev; // bounding boxes from previous frame
-    std::vector<LidarPoint> lidarPointsPrev; // LiDAR points from previous frame
+struct DataFrame { // represents the available sensor information at the same time instance
+    
+    cv::Mat cameraImg; // camera image
+    
+    std::vector<cv::KeyPoint> keypoints; // 2D keypoints within camera image
+    cv::Mat descriptors; // keypoint descriptors
+    std::vector<cv::DMatch> kptMatches; // keypoint matches between previous and current frame
+    std::vector<LidarPoint> lidarPoints;
+    
+    std::vector<BoundingBox> boundingBoxes; // ROI around detected objects in 2D image coordinates
+    std::map<int,int> bbMatches; // bounding box matches between previous and current frame
 };
 
-#endif /* DATASTRUCTURES_H_ */
+#endif /* dataStructures_h */

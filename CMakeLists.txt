@@ -7,12 +7,12 @@ set(CMAKE_CXX_FLAGS "${CXX_FLAGS}")
 
 project(camera_fusion)
 
-# Placeholder for OpenCV - will be added later
-# find_package(OpenCV 4.1 REQUIRED)
-# include_directories(${OpenCV_INCLUDE_DIRS})
-# link_directories(${OpenCV_LIBRARY_DIRS})
-# add_definitions(${OpenCV_DEFINITIONS})
+find_package(OpenCV 4.1 REQUIRED)
 
-# Executable placeholder
+include_directories(${OpenCV_INCLUDE_DIRS})
+link_directories(${OpenCV_LIBRARY_DIRS})
+add_definitions(${OpenCV_DEFINITIONS})
+
+# Executable for basic functionality
 add_executable (3D_object_tracking src/FinalProject_Camera.cpp)
-# target_link_libraries (3D_object_tracking ${OpenCV_LIBRARIES})
+target_link_libraries (3D_object_tracking ${OpenCV_LIBRARIES})
