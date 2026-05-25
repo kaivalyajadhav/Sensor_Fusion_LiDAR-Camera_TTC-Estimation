@@ -1,0 +1,47 @@
+# Build artifacts
+build/
+*.o
+*.a
+*.so
+
+# IDE
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs and outputs
+ttc_log.csv
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+
+# Compiled Shaders
+*.spv
+
+# Dependency directories
+node_modules/
+__pycache__/
+*.py[cod]
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+CTestTestfile.cmake
+Makefile
+cmake_install.cmake
+InstallManifest.txt
+compile_commands.json
+
+# OpenCV
+opencv-*
+opencv/*.zip
+
+# YOLO weights are handled by Git LFS, but exclude any local copies that might not be tracked
+!dat/yolo/

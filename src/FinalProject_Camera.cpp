@@ -48,5 +48,18 @@ int main(int argc, const char *argv[])
         cout << "Warning: Could not load test image at " << imgPath << endl;
     }
     
+    // Test object detection
+    cout << "\nTesting object detection..." << endl;
+    string yoloBasePath = "../dat/yolo/";
+    string yoloClassesFile = yoloBasePath + "coco.names";
+    string yoloModelConfiguration = yoloBasePath + "yolov3.cfg";
+    string yoloModelWeights = yoloBasePath + "yolov3.weights";
+    
+    vector<BoundingBox> boundingBoxes;
+    detectObjects(img, boundingBoxes, 0.2, 0.4, yoloBasePath, yoloClassesFile, 
+                  yoloModelConfiguration, yoloModelWeights, false);
+    
+    cout << "Detected " << boundingBoxes.size() << " objects" << endl;
+    
     return 0;
 }
