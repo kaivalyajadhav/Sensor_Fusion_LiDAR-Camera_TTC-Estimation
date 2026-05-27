@@ -87,5 +87,38 @@ int main(int argc, const char *argv[])
         cout << "Skipping LiDAR-camera association test (no detections or LiDAR points)" << endl;
     }
     
+    // Test keypoint detection and description
+    cout << "\nTesting 2D feature detection and description..." << endl;
+    if (!img.empty()) {
+        cv::Mat imgGray;
+        cv::cvtColor(img, imgGray, cv::COLOR_BGR2GRAY);
+        
+        vector<cv::KeyPoint> keypoints;
+        detKeypointsModern(keypoints, imgGray, "SHITOMASI", false);
+        
+        cv::Mat descriptors;
+        descKeypoints(keypoints, img, descriptors, "BRISK");
+        
+        cout << "Extracted " << keypoints.size() << " keypoints and descriptors" << endl;
+        
+        // Test matching with a second frame (same image for simplicity)
+        vector<cv::KeyPoint> keypoints2;
+        detKeypointsModern(keypoints2, imgGray, "SHITOMASI", false);
+        cv::Mat descriptors2;
+        descKeypoints(keypoints2, img, descriptors2, "BRISK");
+        
+        vector<cv::DMatch> matches;
+        matchDescriptors(keypoints, keypoints2, descriptors, descriptors2, matches, "DES_BINARY", "MAT_BF", "SEL_NN");
+        
+        cout << "Matched " << matches.size() << " keypoint descriptors" << endl;
+        
+        // Test keypoint matching to ROIs
+        if (!boundingBoxes.empty() && !matches.empty()) {
+            clusterKptMatchesWithROI(boundingBoxes[0], keypoints, keypoints2, matches);
+            cout << "Keypoint matching to ROIs test completed" << endl;
+            cout << "Matches in ROI: " << boundingBoxes[0].kptMatches.size() << endl;
+        }
+    }
+    
     return 0;
 }
