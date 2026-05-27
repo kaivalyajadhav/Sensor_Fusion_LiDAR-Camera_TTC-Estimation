@@ -61,5 +61,31 @@ int main(int argc, const char *argv[])
     
     cout << "Detected " << boundingBoxes.size() << " objects" << endl;
     
+    // Test LiDAR-camera point association
+    cout << "\nTesting LiDAR-camera point association..." << endl;
+    if (!boundingBoxes.empty() && !testPoints.empty()) {
+        // Use dummy calibration matrices for testing
+        cv::Mat P_rect_00(3,4,cv::DataType<double>::type);
+        cv::Mat R_rect_00(4,4,cv::DataType<double>::type);
+        cv::Mat RT(4,4,cv::DataType<double>::type);
+        
+        // Set some dummy values
+        P_rect_00.at<double>(0,0) = 7.215377e+02;
+        R_rect_00.at<double>(0,0) = 9.999239e-01;
+        RT.at<double>(0,0) = 7.533745e-03;
+        
+        clusterLidarWithROI(boundingBoxes, testPoints, 0.1f, P_rect_00, R_rect_00, RT);
+        cout << "LiDAR-camera association test completed" << endl;
+        
+        // Check if any Lidar points were associated
+        int total_associated = 0;
+        for (const auto& box : boundingBoxes) {
+            total_associated += box.lidarPoints.size();
+        }
+        cout << "Total Lidar points associated with ROIs: " << total_associated << endl;
+    } else {
+        cout << "Skipping LiDAR-camera association test (no detections or LiDAR points)" << endl;
+    }
+    
     return 0;
 }

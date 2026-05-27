@@ -1,6 +1,6 @@
 # Sensor_Fusion-LiDAR-Camera-_TTC-Estimation
 
-Welcome to the final project of the camera course. This is the sixth stage of development with object detection integration.
+Welcome to the final project of the camera course. This is the seventh stage of development with LiDAR-camera point association capability.
 
 ## Current Capabilities
 - Project structure established
@@ -10,18 +10,18 @@ Welcome to the final project of the camera course. This is the sixth stage of de
 - LiDAR data loading implemented
 - 2D feature detection foundation (all detectors: Shi-Tomasi, Harris, FAST, BRISK, ORB, AKAZE, SIFT)
 - Descriptor extraction and matching foundation (all descriptors: BRISK, BRIEF, ORB, FREAK, AKAZE, SIFT)
-- Object detection integration (YOLO loading stubs)
+- Object detection integration (YOLO)
+- LiDAR-camera point association (clusterLidarWithROI)
 
 ## What is NOT implemented yet
 - TTC computation
-- Lidar point cloud processing (beyond loading and basic filtering)
-- Camera-LiDAR fusion
 - Keypoint matching to ROIs
 - Bounding box tracking
-- Full YOLO object detection (only loading stubs)
+- Camera TTC computation
+- Lidar TTC computation
 
 ## How to run the current version
 1. Clone this repo.
 2. Make a build directory: `mkdir build && cd build`
 3. Compile: `cmake .. && make`
-4. Run it: `./3D_object_tracking` (should load YOLO model and attempt object detection on first image)
+4. Run it: `./3D_object_tracking` (should load data, detect objects, detect keypoints, extract descriptors, match them, and associate LiDAR points with camera ROIs)
