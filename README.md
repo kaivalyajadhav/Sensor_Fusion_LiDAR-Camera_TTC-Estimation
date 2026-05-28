@@ -1,6 +1,6 @@
 # Sensor_Fusion-LiDAR-Camera-_TTC-Estimation
 
-Welcome to the final project of the camera course. This is the eighth stage of development with keypoint matching to ROIs and TTC foundation.
+Welcome to the final project of the camera course. This is the ninth stage of development with bounding box tracking and robustness improvements.
 
 ## Current Capabilities
 - Project structure established
@@ -13,16 +13,18 @@ Welcome to the final project of the camera course. This is the eighth stage of d
 - Object detection integration (YOLO)
 - LiDAR-camera point association (clusterLidarWithROI)
 - Keypoint matching to ROIs (clusterKptMatchesWithROI)
-- TTC computation foundation (computeTTCCamera and computeTTCLidar stubs)
+- TTC computation foundation (computeTTCCamera and computeTTCLidar)
+- Bounding box tracking (matchBoundingBoxes)
+- Robustness improvements in TTC computation
 
 ## What is NOT implemented yet
-- Bounding box tracking
-- Full TTC computation implementations
+- Complete integration of all components in the main processing loop
+- Support for multiple detector/descriptor combinations
 - Data logging to CSV
-- Complete integration of all components in the main loop
+- Full test framework validation
 
 ## How to run the current version
 1. Clone this repo.
 2. Make a build directory: `mkdir build && cd build`
 3. Compile: `cmake .. && make`
-4. Run it: `./3D_object_tracking` (should process the full pipeline up to TTC computation stubs)
+4. Run it: `./3D_object_tracking` (should process the full pipeline with bounding box tracking and improved TTC computation)
