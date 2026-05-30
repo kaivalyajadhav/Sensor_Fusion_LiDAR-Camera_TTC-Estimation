@@ -26,18 +26,24 @@ int main(int argc, const char *argv[])
 {
     /* INIT VARIABLES AND DATA STRUCTURES */
 
+    //log data
+    std::ofstream logFile("ttc_log.csv");
+    logFile << "frame,detector,descriptor,ttc_lidar,ttc_camera\n";    
+
     // data location
     string dataPath = "../";
 
     // All detectors to test
     std::vector<std::string> detectorTypes = 
     {
+        //"HARRIS"
         "SHITOMASI", "HARRIS", "FAST", "BRISK", "ORB", "AKAZE", "SIFT"
     };
 
     // All descriptors to test
     std::vector<std::string> descriptorTypes = 
     {
+        //"ORB"
         "BRISK", "BRIEF", "ORB", "FREAK", "AKAZE", "SIFT"
     };
 
@@ -46,7 +52,7 @@ int main(int argc, const char *argv[])
     string imgPrefix = "KITTI/2011_09_26/image_02/data/000000"; // left camera, color
     string imgFileType = ".png";
     int imgStartIndex = 0; // first file index to load (assumes Lidar and camera names have identical naming convention)
-    int imgEndIndex = 9;   // Process fewer frames for testing
+    int imgEndIndex = 18;   // last file index to load
     int imgStepWidth = 1; 
     int imgFillWidth = 4;  // no. of digits which make up the file index (e.g. img-0001.png)
 
@@ -90,11 +96,7 @@ int main(int argc, const char *argv[])
     {
         for (const auto &descriptorType : descriptorTypes)
         {
-            // Skip invalid combos (simplified check)
-            if ((detectorType == "AKAZE" && descriptorType != "AKAZE") ||
-                (detectorType != "AKAZE" && descriptorType == "AKAZE") ||
-                (detectorType == "ORB" && descriptorType == "SIFT") ||
-                (detectorType == "SIFT" && descriptorType == "ORB"))
+            if (!isValidCombo(detectorType, descriptorType))
             {
                 std::cout << "Skipping invalid combo: " 
                         << detectorType << " + " << descriptorType << std::endl;
@@ -106,7 +108,7 @@ int main(int argc, const char *argv[])
 
             dataBuffer.clear();
      
-            // ---- MAIN IMAGE LOOP ----
+            // ---- ORIGINAL IMAGE LOOP STARTS HERE ----
             for (size_t imgIndex = 0; imgIndex <= imgEndIndex - imgStartIndex; imgIndex+=imgStepWidth)
             {
                 /* LOAD IMAGE INTO BUFFER */
@@ -120,7 +122,7 @@ int main(int argc, const char *argv[])
                 cv::Mat img = cv::imread(imgFullFilename);
                 if (img.empty())
                 {
-                    cerr << "Error: Could not load image " << imgFullFilename << endl;
+                    cerr << "Warning: Could not load image " << imgFullFilename << ", skipping..." << endl;
                     continue;
                 }
 
@@ -170,6 +172,20 @@ int main(int argc, const char *argv[])
 
                 detKeypointsModern(keypoints, imgGray, detectorType, false);
 
+                // optional : limit number of keypoints (helpful for debugging and learning)
+                bool bLimitKpts = false;
+                if (bLimitKpts)
+                {
+                    int maxKeypoints = 50;
+
+                    if (detectorType.compare("SHITOMASI") == 0)
+                    { // there is no response info, so keep the first 50 as they are sorted in descending quality order
+                        keypoints.erase(keypoints.begin() + maxKeypoints, keypoints.end());
+                    }
+                    cv::KeyPointsFilter::retainBest(keypoints, maxKeypoints);
+                    cout << " NOTE: Keypoints have been limited!" << endl;
+                }
+
                 // push keypoints and descriptor for current frame to end of data buffer
                 (dataBuffer.end() - 1)->keypoints = keypoints;
 
@@ -183,6 +199,7 @@ int main(int argc, const char *argv[])
 
                 if (dataBuffer.size() > 1) // wait until at least two images have been processed
                 {
+
                     /* MATCH KEYPOINT DESCRIPTORS */
 
                     vector<cv::DMatch> matches;
@@ -200,8 +217,11 @@ int main(int argc, const char *argv[])
 
                     /* TRACK 3D OBJECT BOUNDING BOXES */
 
+                    
+                    //// TASK FP.1 -> match list of 3D objects (vector<BoundingBox>) between current and previous frame (implement ->matchBoundingBoxes)
                     map<int, int> bbBestMatches;
                     matchBoundingBoxes(matches, bbBestMatches, *(dataBuffer.end()-2), *(dataBuffer.end()-1)); // associate bounding boxes between current and previous frame using keypoint matches
+                    
 
                     // store matches in current data frame
                     (dataBuffer.end()-1)->bbMatches = bbBestMatches;
@@ -232,10 +252,16 @@ int main(int argc, const char *argv[])
                         // compute TTC for current match
                         if( currBB->lidarPoints.size()>0 && prevBB->lidarPoints.size()>0 ) // only compute TTC if we have Lidar points
                         {
+                            //added print
+                            //cout << "curr Lidar point size =" << currBB->lidarPoints.size() << "prev Lidar point size =" << prevBB->lidarPoints.size() << endl;
+                            
+                            
                             //// TASK FP.2 -> compute time-to-collision based on Lidar data (implement -> computeTTCLidar)
                             double ttcLidar; 
                             computeTTCLidar(prevBB->lidarPoints, currBB->lidarPoints, sensorFrameRate, ttcLidar);
+                            
 
+                            
                             //// TASK FP.3 -> assign enclosed keypoint matches to bounding box (implement -> clusterKptMatchesWithROI)
                             //// TASK FP.4 -> compute time-to-collision based on camera (implement -> computeTTCCamera)
 
@@ -245,24 +271,55 @@ int main(int argc, const char *argv[])
                             double ttcCamera;
                             if (currBB->kptMatches.size() < 3)
                             {
+                                std::cout << "WARNING: Too few keypoint matches in BB. Skipping camera TTC. Key points matches= " << currBB->kptMatches.size() << endl;
                                 ttcCamera = 0.0;
                             }
                             else 
                             {
-                            computeTTCCamera((dataBuffer.end() - 2)->keypoints, (dataBuffer.end() - 1)->keypoints, currBB->kptMatches, sensorFrameRate, ttcCamera);
+                                computeTTCCamera((dataBuffer.end() - 2)->keypoints, (dataBuffer.end() - 1)->keypoints, currBB->kptMatches, sensorFrameRate, ttcCamera);
                             }
+                            
 
-                            // For now, just print the values
-                            std::cout << "Frame: " << imgStartIndex + imgIndex 
-                                    << ", TTC Lidar: " << ttcLidar 
-                                    << ", TTC Camera: " << ttcCamera << std::endl;
-                        }
-                    }
-                }
+                            //log details
+                            int frameIndex = imgStartIndex + imgIndex;  // or just use imgIndex if you prefer
+
+                            logFile << frameIndex << ","
+                                    << detectorType << ","
+                                    << descriptorType << ","
+                                    << ttcLidar << ","
+                                    << ttcCamera << "\n";
+                                    
+                            cout << "#9 : Data logging done" << endl;
+
+                            // Optional visualization
+                            bVis = false;
+                            if (bVis)
+                            {
+                                cv::Mat visImg = (dataBuffer.end() - 1)->cameraImg.clone();
+                                showLidarImgOverlay(visImg, currBB->lidarPoints, P_rect_00, R_rect_00, RT, &visImg);
+                                cv::rectangle(visImg, cv::Point(currBB->roi.x, currBB->roi.y), cv::Point(currBB->roi.x + currBB->roi.width, currBB->roi.y + currBB->roi.height), cv::Scalar(0, 255, 0), 2);
+                                
+                                char str[200];
+                                sprintf(str, "TTC Lidar : %f s, TTC Camera : %f s", ttcLidar, ttcCamera);
+                                putText(visImg, str, cv::Point2f(80, 50), cv::FONT_HERSHEY_PLAIN, 2, cv::Scalar(0,0,255));
+
+                                string windowName = "Final Results : TTC";
+                                cv::namedWindow(windowName, 4);
+                                cv::imshow(windowName, visImg);
+
+                                showLidarTopview(currBB->lidarPoints, cv::Size(10.0, 25.0), cv::Size(1000, 2000));
+                                cout << "Press key to continue to next frame" << endl;
+                                cv::waitKey(0);
+                            }
+                            bVis = false;
+                        } // eof TTC computation
+                    } // eof loop over all BB matches            
+                } // eof wait for two images
 
             } // eof loop over all images
         }
     }
     
+    logFile.close();
     return 0;
 }
