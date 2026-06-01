@@ -1,3 +1,4 @@
+
 #ifndef dataStructures_h
 #define dataStructures_h
 
@@ -17,7 +18,7 @@ struct BoundingBox { // bounding box around a classified object (contains both 2
     cv::Rect roi; // 2D region-of-interest in image coordinates
     int classID; // ID based on class file provided to YOLO framework
     double confidence; // classification trust
-    
+
     std::vector<LidarPoint> lidarPoints; // Lidar 3D points which project into 2D image roi
     std::vector<cv::KeyPoint> keypoints; // keypoints enclosed by 2D roi
     std::vector<cv::DMatch> kptMatches; // keypoint matches enclosed by 2D roi
@@ -31,7 +32,7 @@ struct DataFrame { // represents the available sensor information at the same ti
     cv::Mat descriptors; // keypoint descriptors
     std::vector<cv::DMatch> kptMatches; // keypoint matches between previous and current frame
     std::vector<LidarPoint> lidarPoints;
-    
+
     std::vector<BoundingBox> boundingBoxes; // ROI around detected objects in 2D image coordinates
     std::map<int,int> bbMatches; // bounding box matches between previous and current frame
 };

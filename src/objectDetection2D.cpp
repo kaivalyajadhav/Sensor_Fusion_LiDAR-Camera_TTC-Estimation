@@ -1,105 +1,128 @@
+
+#include <fstream>
+#include <sstream>
 #include <iostream>
+
 #include <opencv2/dnn.hpp>
 #include <opencv2/imgproc.hpp>
 #include <opencv2/highgui.hpp>
 
 #include "objectDetection2D.hpp"
-#include "dataStructures.h"
 
 using namespace std;
-using namespace cv;
-using namespace dnn;
 
-void detectObjects(cv::Mat &img, std::vector<BoundingBox> &boundingBoxes, float confThreshold, float nmsThreshold,
-                   const std::string &yoloBasePath, const std::string &yoloClassesFile,
-                   const std::string &yoloModelConfiguration, const std::string &yoloModelWeights, bool bVis)
+// detects objects in an image using the YOLO library and a set of pre-trained objects from the COCO database;
+// a set of 80 classes is listed in "coco.names" and pre-trained weights are stored in "yolov3.weights"
+void detectObjects(cv::Mat& img, std::vector<BoundingBox>& bBoxes, float confThreshold, float nmsThreshold, 
+                   std::string basePath, std::string classesFile, std::string modelConfiguration, std::string modelWeights, bool bVis)
 {
-    // Load class names
+    // load class names from file
     vector<string> classes;
-    ifstream ifs(yoloClassesFile.c_str());
+    ifstream ifs(classesFile.c_str());
     string line;
     while (getline(ifs, line)) classes.push_back(line);
     
-    // Load YOLO network
-    Net net = readNetFromDarknet(yoloModelConfiguration, yoloModelWeights);
-    net.setPreferableBackend(DNN_BACKEND_OPENCV);
-    net.setPreferableTarget(DNN_TARGET_CPU);
+    // load neural network
+    cv::dnn::Net net = cv::dnn::readNetFromDarknet(modelConfiguration, modelWeights);
+    net.setPreferableBackend(cv::dnn::DNN_BACKEND_OPENCV);
+    net.setPreferableTarget(cv::dnn::DNN_TARGET_CPU);
     
-    // Prepare input blob
-    Mat blob;
-    blobFromImage(img, blob, 1/255.0, cv::Size(416, 416), Scalar(0,0,0), true, false);
+    // generate 4D blob from input image
+    cv::Mat blob;
+    vector<cv::Mat> netOutput;
+    double scalefactor = 1/255.0;
+    cv::Size size = cv::Size(416, 416);
+    cv::Scalar mean = cv::Scalar(0,0,0);
+    bool swapRB = false;
+    bool crop = false;
+    cv::dnn::blobFromImage(img, blob, scalefactor, size, mean, swapRB, crop);
+    
+    // Get names of output layers
+    vector<cv::String> names;
+    vector<int> outLayers = net.getUnconnectedOutLayers(); // get  indices of  output layers, i.e.  layers with unconnected outputs
+    vector<cv::String> layersNames = net.getLayerNames(); // get  names of all layers in the network
+    
+    names.resize(outLayers.size());
+    for (size_t i = 0; i < outLayers.size(); ++i) // Get the names of the output layers in names
+        names[i] = layersNames[outLayers[i] - 1];
+    
+    // invoke forward propagation through network
     net.setInput(blob);
+    net.forward(netOutput, names);
     
-    // Run forward pass
-    vector<Mat> outs;
-    vector<String> outNames = net.getUnconnectedOutLayersNames();
-    net.forward(outs, outNames);
-    
-    // Process outputs
-    vector<int> classIds;
-    vector<float> confidences;
-    vector<Rect> boxes;
-    
-    for (size_t i = 0; i < outs.size(); ++i)
+    // Scan through all bounding boxes and keep only the ones with high confidence
+    vector<int> classIds; vector<float> confidences; vector<cv::Rect> boxes;
+    for (size_t i = 0; i < netOutput.size(); ++i)
     {
-        float* data = (float*)outs[i].data;
-        for (int j = 0; j < outs[i].rows; ++j, data += outs[i].cols)
+        float* data = (float*)netOutput[i].data;
+        for (int j = 0; j < netOutput[i].rows; ++j, data += netOutput[i].cols)
         {
-            Mat scores = outs[i].row(j).colRange(5, outs[i].cols);
-            Point classIdPoint;
+            cv::Mat scores = netOutput[i].row(j).colRange(5, netOutput[i].cols);
+            cv::Point classId;
             double confidence;
-            minMaxLoc(scores, 0, &confidence, 0, &classIdPoint);
+            
+            // Get the value and location of the maximum score
+            cv::minMaxLoc(scores, 0, &confidence, 0, &classId);
             if (confidence > confThreshold)
             {
-                int centerX = (int)(data[0] * img.cols);
-                int centerY = (int)(data[1] * img.rows);
-                int width = (int)(data[2] * img.cols);
-                int height = (int)(data[3] * img.rows);
-                int left = centerX - width / 2;
-                int top = centerY - height / 2;
+                cv::Rect box; int cx, cy;
+                cx = (int)(data[0] * img.cols);
+                cy = (int)(data[1] * img.rows);
+                box.width = (int)(data[2] * img.cols);
+                box.height = (int)(data[3] * img.rows);
+                box.x = cx - box.width/2; // left
+                box.y = cy - box.height/2; // top
                 
-                classIds.push_back(classIdPoint.x);
+                boxes.push_back(box);
+                classIds.push_back(classId.x);
                 confidences.push_back((float)confidence);
-                boxes.push_back(Rect(left, top, width, height));
             }
         }
     }
     
-    // Apply non-maximum suppression
+    // perform non-maxima suppression
     vector<int> indices;
-    dnn::NMSBoxes(boxes, confidences, confThreshold, nmsThreshold, indices);
-    
-    // Fill bounding boxes
-    for (size_t i = 0; i < indices.size(); ++i)
-    {
-        int idx = indices[i];
-        BoundingBox box;
-        box.boxID = idx; 
-        box.trackID = -1; // Not tracked yet
-        box.roi = boxes[idx];
-        box.classID = classIds[idx];
-        box.confidence = confidences[idx];
-        boundingBoxes.push_back(box);
+    cv::dnn::NMSBoxes(boxes, confidences, confThreshold, nmsThreshold, indices);
+    for(auto it=indices.begin(); it!=indices.end(); ++it) {
+        
+        BoundingBox bBox;
+        bBox.roi = boxes[*it];
+        bBox.classID = classIds[*it];
+        bBox.confidence = confidences[*it];
+        bBox.boxID = (int)bBoxes.size(); // zero-based unique identifier for this bounding box
+        
+        bBoxes.push_back(bBox);
     }
     
-    if (bVis && !boundingBoxes.empty())
-    {
-        Mat visImg = img.clone();
-        for (size_t i = 0; i < boundingBoxes.size(); ++i)
-        {
-            rectangle(visImg, boundingBoxes[i].roi, Scalar(0, 255, 0), 2);
-            string label = format("%.2f", boundingBoxes[i].confidence);
-            label = classes[boundingBoxes[i].classID] + ": " + label;
+    // show results
+    if(bVis) {
+        
+        cv::Mat visImg = img.clone();
+        for(auto it=bBoxes.begin(); it!=bBoxes.end(); ++it) {
+            
+            // Draw rectangle displaying the bounding box
+            int top, left, width, height;
+            top = (*it).roi.y;
+            left = (*it).roi.x;
+            width = (*it).roi.width;
+            height = (*it).roi.height;
+            cv::rectangle(visImg, cv::Point(left, top), cv::Point(left+width, top+height),cv::Scalar(0, 255, 0), 2);
+            
+            string label = cv::format("%.2f", (*it).confidence);
+            label = classes[((*it).classID)] + ":" + label;
+        
+            // Display label at the top of the bounding box
             int baseLine;
-            Size labelSize = getTextSize(label, FONT_HERSHEY_SIMPLEX, 0.5, 1, &baseLine);
-            topLeft = boundingBoxes[i].roi.tl();
-            rectangle(visImg, Rect(Point(topLeft.x, topLeft.y - labelSize.y - baseLine),
-                                   Size(labelSize.width, labelSize.y + baseLine)),
-                      Scalar(255, 255, 255), FILLED);
-            putText(visImg, label, Point(topLeft.x, topLeft.y - baseLine),
-                    FONT_HERSHEY_SIMPLEX, 0.5, Scalar(0, 0, 0));
+            cv::Size labelSize = getTextSize(label, cv::FONT_ITALIC, 0.5, 1, &baseLine);
+            top = max(top, labelSize.height);
+            rectangle(visImg, cv::Point(left, top - round(1.5*labelSize.height)), cv::Point(left + round(1.5*labelSize.width), top + baseLine), cv::Scalar(255, 255, 255), cv::FILLED);
+            cv::putText(visImg, label, cv::Point(left, top), cv::FONT_ITALIC, 0.75, cv::Scalar(0,0,0),1);
+            
         }
-        imshow("Object Detection", visImg);
-        waitKey(0);
+        
+        string windowName = "Object classification";
+        cv::namedWindow( windowName, 1 );
+        cv::imshow( windowName, visImg );
+        cv::waitKey(0); // wait for key to be pressed
     }
 }

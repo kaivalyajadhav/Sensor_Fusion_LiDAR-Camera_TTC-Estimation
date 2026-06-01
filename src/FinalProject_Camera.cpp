@@ -1,3 +1,4 @@
+
 /* INCLUDES FOR THIS PROJECT */
 #include <iostream>
 #include <fstream>
@@ -20,6 +21,20 @@
 #include "camFusion.hpp"
 
 using namespace std;
+
+bool isValidCombo(const std::string &det, const std::string &desc)
+{
+    // AKAZE descriptor only works with AKAZE detector
+    if (det != "AKAZE" && desc == "AKAZE") return false;
+    if (det == "AKAZE" && desc != "AKAZE") return false;
+    
+
+    // ORB detector cannot use SIFT descriptor
+    if (det == "ORB" && desc == "SIFT") return false;
+    if (det == "SIFT" && desc == "ORB") return false;
+
+    return true;
+}
 
 /* MAIN PROGRAM */
 int main(int argc, const char *argv[])
@@ -90,7 +105,7 @@ int main(int argc, const char *argv[])
     int dataBufferSize = 2;       // no. of images which are held in memory (ring buffer) at the same time
     vector<DataFrame> dataBuffer; // list of data frames which are held in memory at the same time
     bool bVis = false;            // visualize results
-   
+  
     /* MAIN LOOP OVER ALL IMAGES */
     for (const auto &detectorType : detectorTypes)
     {
@@ -107,8 +122,9 @@ int main(int argc, const char *argv[])
                     << " + " << descriptorType << " ===\n";
 
             dataBuffer.clear();
-     
+    
             // ---- ORIGINAL IMAGE LOOP STARTS HERE ----
+
             for (size_t imgIndex = 0; imgIndex <= imgEndIndex - imgStartIndex; imgIndex+=imgStepWidth)
             {
                 /* LOAD IMAGE INTO BUFFER */
@@ -120,11 +136,6 @@ int main(int argc, const char *argv[])
 
                 // load image from file 
                 cv::Mat img = cv::imread(imgFullFilename);
-                if (img.empty())
-                {
-                    cerr << "Warning: Could not load image " << imgFullFilename << ", skipping..." << endl;
-                    continue;
-                }
 
                 // push image into data frame buffer
                 DataFrame frame;
@@ -135,12 +146,16 @@ int main(int argc, const char *argv[])
                 }
                 dataBuffer.push_back(frame);
 
+                //cout << "#1 : LOAD IMAGE INTO BUFFER done" << endl;
+
                 /* DETECT & CLASSIFY OBJECTS */
 
                 float confThreshold = 0.2;
                 float nmsThreshold = 0.4;        
                 detectObjects((dataBuffer.end() - 1)->cameraImg, (dataBuffer.end() - 1)->boundingBoxes, confThreshold, nmsThreshold,
                             yoloBasePath, yoloClassesFile, yoloModelConfiguration, yoloModelWeights, bVis);
+
+                //cout << "#2 : DETECT & CLASSIFY OBJECTS done" << endl;
 
                 /* CROP LIDAR POINTS */
 
@@ -155,13 +170,29 @@ int main(int argc, const char *argv[])
             
                 (dataBuffer.end() - 1)->lidarPoints = lidarPoints;
 
+                //cout << "#3 : CROP LIDAR POINTS done" << endl;
+
                 /* CLUSTER LIDAR POINT CLOUD */
 
                 // associate Lidar points with camera-based ROI
                 float shrinkFactor = 0.10; // shrinks each bounding box by the given percentage to avoid 3D object merging at the edges of an ROI
                 clusterLidarWithROI((dataBuffer.end()-1)->boundingBoxes, (dataBuffer.end() - 1)->lidarPoints, shrinkFactor, P_rect_00, R_rect_00, RT);
 
-                // DETECT IMAGE KEYPOINTS
+                // Visualize 3D objects
+                //bVis = true;
+                if(bVis)
+                {
+                    show3DObjects((dataBuffer.end()-1)->boundingBoxes, cv::Size(4.0, 20.0), cv::Size(800, 800), true);
+                }
+                bVis = false;
+
+                //cout << "#4 : CLUSTER LIDAR POINT CLOUD done" << endl;
+                
+                
+                // REMOVE THIS LINE BEFORE PROCEEDING WITH THE FINAL PROJECT
+                //continue; // skips directly to the next image without processing what comes beneath
+
+                /* DETECT IMAGE KEYPOINTS */
 
                 // convert current image to grayscale
                 cv::Mat imgGray;
@@ -169,6 +200,7 @@ int main(int argc, const char *argv[])
 
                 // extract 2D keypoints from current image
                 vector<cv::KeyPoint> keypoints; // create empty feature list for current image
+                //string detectorType = "SHITOMASI";
 
                 detKeypointsModern(keypoints, imgGray, detectorType, false);
 
@@ -189,13 +221,19 @@ int main(int argc, const char *argv[])
                 // push keypoints and descriptor for current frame to end of data buffer
                 (dataBuffer.end() - 1)->keypoints = keypoints;
 
+                cout << "# :Image#"<< imgIndex << ";  DETECT KEYPOINTS done; Detector type =" << detectorType << endl;
+
                 /* EXTRACT KEYPOINT DESCRIPTORS */
 
                 cv::Mat descriptors;
+                //string descriptorType = "BRISK"; // BRISK, BRIEF, ORB, FREAK, AKAZE, SIFT
+
                 descKeypoints((dataBuffer.end() - 1)->keypoints, (dataBuffer.end() - 1)->cameraImg, descriptors, descriptorType);
 
                 // push descriptors for current frame to end of data buffer
                 (dataBuffer.end() - 1)->descriptors = descriptors;
+
+                cout << "#6 : EXTRACT DESCRIPTORS done; Descriptor type = " << descriptorType << endl;
 
                 if (dataBuffer.size() > 1) // wait until at least two images have been processed
                 {
@@ -215,6 +253,9 @@ int main(int argc, const char *argv[])
                     // store matches in current data frame
                     (dataBuffer.end() - 1)->kptMatches = matches;
 
+                    cout << "#7 : MATCH KEYPOINT DESCRIPTORS done; Descriptor category = " << descriptorCategory << endl;
+
+                    
                     /* TRACK 3D OBJECT BOUNDING BOXES */
 
                     
@@ -225,6 +266,8 @@ int main(int argc, const char *argv[])
 
                     // store matches in current data frame
                     (dataBuffer.end()-1)->bbMatches = bbBestMatches;
+
+                    cout << "#8 : TRACK 3D OBJECT BOUNDING BOXES done" << endl;
 
                     /* COMPUTE TTC ON OBJECT IN FRONT */
 
@@ -254,6 +297,7 @@ int main(int argc, const char *argv[])
                         {
                             //added print
                             //cout << "curr Lidar point size =" << currBB->lidarPoints.size() << "prev Lidar point size =" << prevBB->lidarPoints.size() << endl;
+
                             
                             
                             //// TASK FP.2 -> compute time-to-collision based on Lidar data (implement -> computeTTCLidar)
@@ -267,7 +311,7 @@ int main(int argc, const char *argv[])
 
                             clusterKptMatchesWithROI(*currBB, (dataBuffer.end() - 2)->keypoints, (dataBuffer.end() - 1)->keypoints, (dataBuffer.end() - 1)->kptMatches);                    
 
-                            // SAFETY CHECK: must have enough keypoint matches
+                            // SAFETY CHECK 3: must have enough keypoint matches
                             double ttcCamera;
                             if (currBB->kptMatches.size() < 3)
                             {
@@ -276,9 +320,13 @@ int main(int argc, const char *argv[])
                             }
                             else 
                             {
-                                computeTTCCamera((dataBuffer.end() - 2)->keypoints, (dataBuffer.end() - 1)->keypoints, currBB->kptMatches, sensorFrameRate, ttcCamera);
+                            computeTTCCamera((dataBuffer.end() - 2)->keypoints, (dataBuffer.end() - 1)->keypoints, currBB->kptMatches, sensorFrameRate, ttcCamera);
                             }
                             
+                            // if (ttcLidar > 1.2* ttcCamera || ttcLidar < 0.8 * ttcCamera)
+                            // {
+                            //     showLidarTopview(currBB->lidarPoints, cv::Size(10.0, 25.0), cv::Size(1000, 2000));
+                            // }
 
                             //log details
                             int frameIndex = imgStartIndex + imgIndex;  // or just use imgIndex if you prefer
@@ -288,10 +336,9 @@ int main(int argc, const char *argv[])
                                     << descriptorType << ","
                                     << ttcLidar << ","
                                     << ttcCamera << "\n";
-                                    
+                            
                             cout << "#9 : Data logging done" << endl;
 
-                            // Optional visualization
                             bVis = false;
                             if (bVis)
                             {
@@ -312,14 +359,15 @@ int main(int argc, const char *argv[])
                                 cv::waitKey(0);
                             }
                             bVis = false;
+
                         } // eof TTC computation
                     } // eof loop over all BB matches            
-                } // eof wait for two images
+
+                }
 
             } // eof loop over all images
         }
     }
-    
     logFile.close();
     return 0;
 }

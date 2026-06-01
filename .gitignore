@@ -13,9 +13,14 @@ build/
 # OS
 .DS_Store
 Thumbs.db
+*Zone.Identifier
+*.Zone.Identifier
+*.id
+*.uid
+identifier.txt
+
 
 # Logs and outputs
-ttc_log.csv
 *.log
 
 # Temporary files

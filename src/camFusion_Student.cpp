@@ -1,10 +1,9 @@
+
 #include <iostream>
 #include <algorithm>
 #include <numeric>
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
-#include <limits>
-#include <cmath>
 
 #include "camFusion.hpp"
 #include "dataStructures.h"
@@ -48,6 +47,7 @@ void clusterLidarWithROI(std::vector<BoundingBox> &boundingBoxes, std::vector<Li
             {
                 enclosingBoxes.push_back(it2);
             }
+
         } // eof loop over all bounding boxes
 
         // check wether point has been enclosed by one or by multiple boxes
@@ -56,10 +56,15 @@ void clusterLidarWithROI(std::vector<BoundingBox> &boundingBoxes, std::vector<Li
             // add Lidar point to bounding box
             enclosingBoxes[0]->lidarPoints.push_back(*it1);
         }
+
     } // eof loop over all Lidar points
 }
 
-// Create topview image
+/* 
+* The show3DObjects() function below can handle different output image sizes, but the text output has been manually tuned to fit the 2000x2000 size. 
+* However, you can make this function work for other sizes too.
+* For instance, to use a 1000x1000 size, adjusting the text positions by dividing them by 2.
+*/
 void show3DObjects(std::vector<BoundingBox> &boundingBoxes, cv::Size worldSize, cv::Size imageSize, bool bWait)
 {
     // create topview image
@@ -128,7 +133,7 @@ void show3DObjects(std::vector<BoundingBox> &boundingBoxes, cv::Size worldSize, 
     }
 }
 
-// Associate a given bounding box with the keypoints it contains
+// associate a given bounding box with the keypoints it contains
 void clusterKptMatchesWithROI(BoundingBox &boundingBox, std::vector<cv::KeyPoint> &kptsPrev, std::vector<cv::KeyPoint> &kptsCurr, std::vector<cv::DMatch> &kptMatches)
 {
     // 1. Collect all matches whose *current-frame* keypoint lies inside currBB.roi
@@ -173,10 +178,11 @@ void clusterKptMatchesWithROI(BoundingBox &boundingBox, std::vector<cv::KeyPoint
             boundingBox.kptMatches.push_back(match);
         }
     }
+
 }
 
 // Compute time-to-collision (TTC) based on keypoint correspondences in successive images
-void computeTTCCamera(std::vector<cv::KeyPoint> &kptsPrev, std::vector<cv::KeyPoint> &kptsCurr,
+void computeTTCCamera(std::vector<cv::KeyPoint> &kptsPrev, std::vector<cv::KeyPoint> &kptsCurr, 
                       std::vector<cv::DMatch> kptMatches, double frameRate, double &TTC, cv::Mat *visImg)
 {
     // 1. Compute distance ratios between all matched keypoints
@@ -237,9 +243,9 @@ void computeTTCCamera(std::vector<cv::KeyPoint> &kptsPrev, std::vector<cv::KeyPo
         cv::imshow("Camera TTC Visualization", vis);
         cv::waitKey(1);
     }
+
 }
 
-// Compute time-to-collision based on Lidar data
 void computeTTCLidar(std::vector<LidarPoint> &lidarPointsPrev,
                      std::vector<LidarPoint> &lidarPointsCurr, double frameRate, double &TTC)
 {
@@ -260,9 +266,9 @@ void computeTTCLidar(std::vector<LidarPoint> &lidarPointsPrev,
 
     double dT = 1.0 / frameRate;
     TTC = dCurr * dT / (dPrev - dCurr);
+
 }
 
-// Map: prevBoxID -> (currBoxID -> count)
 void matchBoundingBoxes(std::vector<cv::DMatch> &matches, std::map<int, int> &bbBestMatches, DataFrame &prevFrame, DataFrame &currFrame)
 {
     // Map: prevBoxID -> (currBoxID -> count)
